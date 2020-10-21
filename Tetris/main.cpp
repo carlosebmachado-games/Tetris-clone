@@ -5,10 +5,12 @@
 #include "util.hpp"
 #include "watch.hpp"
 
-const static int TILE_SIZE = 12;
-const static int FIELD_WIDTH = 12;
-const static int FIELD_HEIGHT = 22;
-const static int PIECE_SIZE = 4;
+const int SCREEN_WIDTH = 200;
+const int SCREEN_HEIGHT = 264;
+const int TILE_SIZE = 12;
+const int FIELD_WIDTH = 12;
+const int FIELD_HEIGHT = 22;
+const int PIECE_SIZE = 4;
 
 enum { BLACK, GREY, RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, SPR_AMOUNT };
 
@@ -57,6 +59,8 @@ struct Piece {
 		x = FIELD_WIDTH / 2 - PIECE_SIZE / 2;
 		y = 0;
 		timerDown.start();
+		timerPressDown.start();
+		timerBtn.start();
 		int piece = rand() % 7;
 		int color = rand() % 6 + 2;
 
@@ -305,7 +309,7 @@ private:
 			//std::cout << "Atualizou...\n";
 		}
 	}
-
+	
 	void render() {
 		for (int y = 0; y < FIELD_HEIGHT; y++) {
 			for (int x = 0; x < FIELD_WIDTH; x++) {
@@ -316,6 +320,27 @@ private:
 		}
 		//system("pause");
 		//system("cls");
+
+		// UI
+		drawUI();
+	}
+
+	void drawUI() {
+		int uiX = FIELD_WIDTH * TILE_SIZE;
+		int uiY = 5;
+		int uiWidth = (SCREEN_WIDTH - uiX);
+		int uiHeight = SCREEN_HEIGHT;
+		int uiCenterX = uiX + (uiWidth / 2);
+
+		DrawString(uiCenterX - GetTextSize("NEXT").x / 2, uiY + 5, "NEXT");
+		for (int y = 0; y < PIECE_SIZE; y++) {
+			for (int x = 0; x < PIECE_SIZE; x++) {
+				DrawSprite(
+					uiCenterX - 2 * TILE_SIZE + x * TILE_SIZE,
+					uiY + 20 + y * TILE_SIZE,
+					sprites[piece[0].space[y][x]]);
+			}
+		}
 	}
 
 	bool checkRow() {
