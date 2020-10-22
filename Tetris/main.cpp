@@ -11,13 +11,26 @@ const int TILE_SIZE = 12;
 const int FIELD_WIDTH = 12;
 const int FIELD_HEIGHT = 22;
 const int PIECE_SIZE = 4;
+const int PIECE_DOWN_TIME = (1 * SECOND);
+const int SCORE_INCREMENT = 100;
 
 enum { BLACK, GREY, RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, SPR_AMOUNT };
+
+enum { MAIN_MENU, PLAYING, PAUSE_MENU, GAME_OVER };
+int state = GAME_OVER;
 
 bool btnRight = false;
 bool btnLeft = false;
 bool btnDown = false;
 bool btnUp = false;
+bool btnConfirm = false;
+bool btnReturn = false;
+
+int score;
+int lines;
+int level;
+
+Timer timerDown = Timer(PIECE_DOWN_TIME);
 
 int field[22][12] = {
 	{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
@@ -51,14 +64,12 @@ struct Piece {
 		{0, 0, 0, 0}};
 	int x;
 	int y;
-	Timer timerDown = Timer((1 * SECOND));
 	Timer timerPressDown = Timer((0.05f * SECOND));
 	Timer timerBtn = Timer((0.1f * SECOND));
 
 	Piece() {
 		x = FIELD_WIDTH / 2 - PIECE_SIZE / 2;
 		y = 0;
-		timerDown.start();
 		timerPressDown.start();
 		timerBtn.start();
 		int piece = rand() % 7;
@@ -113,7 +124,7 @@ struct Piece {
 		}
 	}
 
-	bool update() {
+	bool update(olc::PixelGameEngine* eng) {
 		// default move
 		if (timerDown.timeout()) {
 			if(!move(olc::vi2d(0, 1)))
@@ -124,10 +135,10 @@ struct Piece {
 		if (timerBtn.timeout()) {
 			if (btnRight) {
 				move(olc::vi2d(1, 0));
-				btnRight = false;
+				//btnRight = false;
 			} else if (btnLeft) {
 				move(olc::vi2d(-1, 0));
-				btnLeft = false;
+				//btnLeft = false;
 			}
 			if (btnUp) {
 				rotate();
@@ -136,10 +147,13 @@ struct Piece {
 		}
 		if (timerPressDown.timeout()) {
 			if (btnDown) {
-				move(olc::vi2d(0, 1));
-				btnDown = false;
+				if (move(olc::vi2d(0, 1))) {
+					score++;
+				}
+				//btnDown = false;
 			}
 		}
+
 		return true;
 	}
 
@@ -151,11 +165,17 @@ struct Piece {
 			{0, 0, 0, 0}};
 
 		clean();
+		
+		// rotate
+		int ny = 0;
+		int nx = 0;
 		for (int sy = 0; sy < PIECE_SIZE; sy++) {
 			for (int sx = 0; sx < PIECE_SIZE; sx++) {
-				aux[sx][sy] = space[sy][sx];
+				aux[ny][nx] = space[sy][sx];
 			}
 		}
+		// -----
+
 		if (canRotate(aux)) {
 			//std::cout << "isFree rotate\n";
 			for (int sy = 0; sy < PIECE_SIZE; sy++) {
@@ -241,8 +261,10 @@ struct Piece {
 class Tetris : public olc::PixelGameEngine {
 private:
 	olc::Sprite* sprites[SPR_AMOUNT];
-	std::vector<Piece> piece;
+	std::vector<Piece> curPiece;
+	std::vector<Piece> nextPiece;
 	Timer timerLoop = Timer((SECOND / 60));
+	Timer timerLevel = Timer((60 * SECOND));
 
 public:
 	Tetris() {
@@ -252,7 +274,6 @@ public:
 private:
 	bool OnUserCreate() override {
 		srand(time(nullptr));
-		piece = std::vector<Piece>();
 		sprites[BLACK] = spriteBlock(olc::BLACK, olc::BLACK, olc::BLACK);
 		sprites[GREY] = spriteBlock(olc::GREY, olc::DARK_GREY, olc::VERY_DARK_GREY);
 		sprites[RED] = spriteBlock(olc::RED, olc::DARK_RED, olc::VERY_DARK_RED);
@@ -261,30 +282,34 @@ private:
 		sprites[CYAN] = spriteBlock(olc::CYAN, olc::DARK_CYAN, olc::VERY_DARK_CYAN);
 		sprites[MAGENTA] = spriteBlock(olc::MAGENTA, olc::DARK_MAGENTA, olc::VERY_DARK_MAGENTA);
 		sprites[YELLOW] = spriteBlock(olc::YELLOW, olc::DARK_YELLOW, olc::VERY_DARK_YELLOW);
-		piece.push_back(Piece());
-		timerLoop.start();
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
 		// Processando keys
-		if (GetKey(olc::Key::RIGHT).bHeld || GetKey(olc::Key::D).bHeld) {
+		if (GetKey(olc::Key::RIGHT).bPressed || GetKey(olc::Key::D).bPressed) {
 			btnRight = true;
-		}/* else if (GetKey(olc::Key::RIGHT).bReleased || GetKey(olc::Key::D).bReleased) {
+		} else if (GetKey(olc::Key::RIGHT).bReleased || GetKey(olc::Key::D).bReleased) {
 			btnRight = false;
-		}*/
-		if (GetKey(olc::Key::LEFT).bHeld || GetKey(olc::Key::A).bHeld) {
+		}
+		if (GetKey(olc::Key::LEFT).bPressed || GetKey(olc::Key::A).bPressed) {
 			btnLeft = true;
-		}/* else if (GetKey(olc::Key::LEFT).bReleased || GetKey(olc::Key::A).bReleased) {
+		} else if (GetKey(olc::Key::LEFT).bReleased || GetKey(olc::Key::A).bReleased) {
 			btnLeft = false;
-		}*/
-		if (GetKey(olc::Key::DOWN).bHeld || GetKey(olc::Key::S).bHeld) {
+		}
+		if (GetKey(olc::Key::DOWN).bPressed || GetKey(olc::Key::S).bPressed) {
 			btnDown = true;
-		}/* else if (GetKey(olc::Key::DOWN).bReleased || GetKey(olc::Key::S).bReleased) {
+		} else if (GetKey(olc::Key::DOWN).bReleased || GetKey(olc::Key::S).bReleased) {
 			btnDown = false;
-		}*/
+		}
 		if (GetKey(olc::Key::UP).bPressed || GetKey(olc::Key::W).bPressed) {
 			btnUp = true;
+		}
+		if (GetKey(olc::Key::ENTER).bPressed || GetKey(olc::Key::SPACE).bPressed) {
+			btnConfirm = true;
+		}
+		if (GetKey(olc::Key::ESCAPE).bPressed || GetKey(olc::Key::BACK).bPressed) {
+			btnReturn = true;
 		}/* else if (GetKey(olc::Key::UP).bReleased || GetKey(olc::Key::W).bReleased) {
 			btnUp = false;
 		}*/
@@ -298,49 +323,172 @@ private:
 		return true;
 	}
 
-	void update() {
-		for (int i = 0; i < piece.size(); i++) {
-			if (!piece[i].update()) {
-				checkRow();
-
-				piece.clear();
-				piece.push_back(Piece());
+	void GameInit() {
+		curPiece = std::vector<Piece>();
+		nextPiece = std::vector<Piece>();
+		curPiece.push_back(Piece());
+		nextPiece.push_back(Piece());
+		timerLoop.start();
+		timerLevel.start();
+		timerDown.start();
+		score = 0;
+		lines = 0;
+		level = 1;
+		for (int y = 0; y < FIELD_HEIGHT - 1; y++) {
+			for (int x = 1; x < FIELD_WIDTH - 1; x++) {
+				field[y][x] = 0;
 			}
-			//std::cout << "Atualizou...\n";
+		}
+	}
+
+	void update() {
+		if (state == MAIN_MENU) {
+			if (btnConfirm) {
+				state = PLAYING;
+				GameInit();
+				btnConfirm = false;
+			} else if (btnReturn) {
+				// TODO: Close game
+				btnReturn = false;
+			}
+		} else if (state == PLAYING) {
+			for (int i = 0; i < curPiece.size(); i++) {
+				if (!curPiece[i].update(this)) {
+					checkRow();
+
+					if (canGenerate()) {
+						curPiece.clear();
+						curPiece.push_back(nextPiece[0]);
+						nextPiece.clear();
+						nextPiece.push_back(Piece());
+					}
+					else {
+						state = GAME_OVER;
+					}
+				}
+				//std::cout << "Atualizou...\n";
+			}
+			if (timerLevel.timeout()) {
+				level++;
+				timerDown.interval = PIECE_DOWN_TIME / level;
+			}
+			if (btnConfirm) {
+				btnConfirm = false;
+			} else if (btnReturn) {
+				state = PAUSE_MENU;
+				btnReturn = false;
+			}
+		} else if (state == PAUSE_MENU) {
+			if (btnConfirm) {
+				state = PLAYING;
+				btnConfirm = false;
+			} else if (btnReturn) {
+				state = MAIN_MENU;
+				btnReturn = false;
+			}
+		} else if (state == GAME_OVER) {
+			if (btnConfirm) {
+				btnConfirm = false;
+			} else if (btnReturn) {
+				state = MAIN_MENU;
+				btnReturn = false;
+			}
 		}
 	}
 	
 	void render() {
-		for (int y = 0; y < FIELD_HEIGHT; y++) {
-			for (int x = 0; x < FIELD_WIDTH; x++) {
-				DrawSprite(x * TILE_SIZE, y * TILE_SIZE, sprites[field[y][x]]);
-				//std::cout << field[y][x] << " ";
-			}
-			//std::cout << std::endl;
-		}
-		//system("pause");
-		//system("cls");
+		Clear(olc::BACK);
 
-		// UI
-		drawUI();
+		if (state == MAIN_MENU) {
+			drawCentralizedText("TETRIS", 20);
+			drawCentralizedText("ENTER TO PLAY", 100);
+			drawCentralizedText("ESC TO EXIT", 125);
+			drawCentralizedText("GAME: CARLOS MACHADO", 200);
+			drawCentralizedText("olcPixelGameEngine", 220);
+			drawCentralizedText("OneLoneCoder", 230);
+		} else if(state == PLAYING) {
+			for (int y = 0; y < FIELD_HEIGHT; y++) {
+				for (int x = 0; x < FIELD_WIDTH; x++) {
+					if (field[y][x] > 0) {
+						DrawSprite(x * TILE_SIZE, y * TILE_SIZE, sprites[field[y][x]]);
+					}
+					//std::cout << field[y][x] << " ";
+				}
+				//std::cout << std::endl;
+			}
+			//system("pause");
+			//system("cls");
+
+			// UI
+			int uiX = FIELD_WIDTH * TILE_SIZE;
+			int uiY = 10;
+			int uiWidth = (SCREEN_WIDTH - uiX);
+			int uiHeight = SCREEN_HEIGHT;
+			int uiCenterX = uiX + (uiWidth / 2);
+
+			// NEXT PIECE
+			DrawString(uiCenterX - GetTextSize("NEXT").x / 2, uiY, "NEXT");
+			for (int y = 0; y < PIECE_SIZE; y++) {
+				for (int x = 0; x < PIECE_SIZE; x++) {
+					if (nextPiece[0].space[y][x] > 0) {
+						DrawSprite(
+							uiCenterX - 2 * TILE_SIZE + x * TILE_SIZE,
+							uiY + 10 + y * TILE_SIZE,
+							sprites[nextPiece[0].space[y][x]]);
+					}
+				}
+			}
+
+			// PLAYER SCORE
+			DrawString(uiCenterX - GetTextSize("SCORE").x / 2, uiY + 70, "SCORE");
+			std::string strScore = std::to_string(score);
+			DrawString(uiCenterX - GetTextSize(strScore).x / 2, uiY + 85, strScore);
+
+			// SPEED LEVEL
+			DrawString(uiCenterX - GetTextSize("LEVEL").x / 2, uiY + 105, "LEVEL");
+			std::string strLevel = std::to_string(level);
+			DrawString(uiCenterX - GetTextSize(strLevel).x / 2, uiY + 120, strLevel);
+
+			// FINALIZED LINES
+			DrawString(uiCenterX - GetTextSize("LINES").x / 2, uiY + 140, "LINES");
+			std::string strLines = std::to_string(lines);
+			DrawString(uiCenterX - GetTextSize(strLines).x / 2, uiY + 155, strLines);
+		} else if (state == PAUSE_MENU) {
+			drawCentralizedText("TETRIS", 20);
+			drawCentralizedText("ENTER TO CONTINUE", 100);
+			drawCentralizedText("ESC TO BACK TO", 125);
+			drawCentralizedText("MAIN MENU", 135);
+		} else if (state == GAME_OVER) {
+			std::string strScore = std::to_string(score);
+			std::string strLevel = std::to_string(level);
+			std::string strLines = std::to_string(lines);
+
+			drawCentralizedText("TETRIS", 20);
+			drawCentralizedText("GAME OVER", 60);
+			drawCentralizedText("SCORE", 100);
+			drawCentralizedText(strScore.c_str(), 110);
+			drawCentralizedText("LEVEL", 130);
+			drawCentralizedText(strLevel.c_str(), 140);
+			drawCentralizedText("LINES", 160);
+			drawCentralizedText(strLines.c_str(), 170);
+			drawCentralizedText("ESC TO BACK TO", 210);
+			drawCentralizedText("MAIN MENU", 220);
+		}
 	}
 
-	void drawUI() {
-		int uiX = FIELD_WIDTH * TILE_SIZE;
-		int uiY = 5;
-		int uiWidth = (SCREEN_WIDTH - uiX);
-		int uiHeight = SCREEN_HEIGHT;
-		int uiCenterX = uiX + (uiWidth / 2);
-
-		DrawString(uiCenterX - GetTextSize("NEXT").x / 2, uiY + 5, "NEXT");
-		for (int y = 0; y < PIECE_SIZE; y++) {
-			for (int x = 0; x < PIECE_SIZE; x++) {
-				DrawSprite(
-					uiCenterX - 2 * TILE_SIZE + x * TILE_SIZE,
-					uiY + 20 + y * TILE_SIZE,
-					sprites[piece[0].space[y][x]]);
+	bool canGenerate() {
+		for (int y = 0; y < 5; y++) {
+			for (int x = 4; x < 8; x++) {
+				if (field[y][x] > 0) {
+					return false;
+				}
 			}
 		}
+		return true;
+	}
+
+	void drawCentralizedText(const char* str, int y) {
+		DrawString(SCREEN_WIDTH / 2 - GetTextSize(str).x / 2, y, str);
 	}
 
 	bool checkRow() {
@@ -358,6 +506,8 @@ private:
 						field[my][mx] = field[my - 1][mx];
 					}
 				}
+				lines++;
+				score += SCORE_INCREMENT;
 			}
 		}
 		return true;
@@ -394,7 +544,7 @@ private:
 
 int main() {
 	Tetris tetris;
-	if (tetris.Construct(200, 264, 2, 2))
+	if (tetris.Construct(SCREEN_WIDTH, SCREEN_HEIGHT, 2, 2))
 		tetris.Start();
 	return 0;
 }

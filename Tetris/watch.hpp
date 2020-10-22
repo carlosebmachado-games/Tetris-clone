@@ -34,7 +34,7 @@ public:
 
 class Timer
 {
-private:
+public:
 	clock_t startTime;
 	clock_t interval;
 
