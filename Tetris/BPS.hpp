@@ -883,6 +883,10 @@ namespace BPS
 
     File* compile(std::string data)
     {
+        if (data == "") {
+            return new File();
+        }
+
         auto tokens = lexer(data);
         auto sections = parser(tokens);
         return new File(sections);
@@ -896,10 +900,12 @@ namespace BPS
         std::ifstream f;
         f.open(normalizePath(path));
 
-        while (!f.eof())
-        {
-            getline(f, line);
-            data += line + "\n";
+        if (f.is_open()) {
+            while (!f.eof())
+            {
+                getline(f, line);
+                data += line + "\n";
+            }
         }
         f.close();
 

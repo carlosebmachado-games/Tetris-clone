@@ -2,7 +2,6 @@
 #include "olcPixelGameEngine.h"
 
 #include "BPS.hpp"
-#include "util.hpp"
 #include "watch.hpp"
 
 const int SCREEN_WIDTH = 200;
@@ -190,21 +189,6 @@ struct Piece {
 		move(olc::vd2d(0, 0));
 	}
 
-	void clean() {
-		int px = 0;
-		int py = 0;
-		for (int fy = y; fy < y + PIECE_SIZE; fy++) {
-			for (int fx = x; fx < x + PIECE_SIZE; fx++) {
-				if (space[py][px] > 0) {
-					field[fy][fx] = 0;
-				}
-				px++;
-			}
-			py++;
-			px = 0;
-		}
-	}
-
 	bool move(olc::vi2d movement) {
 		if (!isFree(movement)) return false;
 		//std::cout << "isFree()\n";
@@ -226,6 +210,21 @@ struct Piece {
 			px = 0;
 		}
 		return true;
+	}
+
+	void clean() {
+		int px = 0;
+		int py = 0;
+		for (int fy = y; fy < y + PIECE_SIZE; fy++) {
+			for (int fx = x; fx < x + PIECE_SIZE; fx++) {
+				if (space[py][px] > 0) {
+					field[fy][fx] = 0;
+				}
+				px++;
+			}
+			py++;
+			px = 0;
+		}
 	}
 
 	bool isFree(olc::vi2d movement) {
@@ -357,15 +356,43 @@ private:
 		} else if (state == PLAYING) {
 			for (int i = 0; i < curPiece.size(); i++) {
 				if (!curPiece[i].update(this)) {
-					checkRow();
+					// checa se existe uma linha completa
+					for (int y = 0; y < FIELD_HEIGHT - 1; y++) {
+						bool complete = true;
+						for (int x = 1; x < FIELD_WIDTH - 1; x++) {
+							if (field[y][x] == 0) {
+								complete = false;
+							}
+						}
+						if (complete) {
+							//std::cout << "Complete Row\n";
+							for (int my = y; my > 0; my--) {
+								for (int mx = 1; mx < FIELD_WIDTH - 1; mx++) {
+									field[my][mx] = field[my - 1][mx];
+								}
+							}
+							// se encontra, incrementa o score
+							lines++;
+							score += SCORE_INCREMENT;
+						}
+					}
 
 					if (canGenerate()) {
 						curPiece.clear();
 						curPiece.push_back(nextPiece[0]);
 						nextPiece.clear();
 						nextPiece.push_back(Piece());
-					}
-					else {
+					} else {
+						// TODO: Save hiscore / take player name / sort by hiscores
+						auto file = BPS::read("scores");
+						std::string pn = std::to_string(file->findAll().size() + 1);
+						auto sec = new BPS::Section("PLAYER " + pn);
+						sec->add(new BPS::IntData("score", score));
+						sec->add(new BPS::IntData("level", level));
+						sec->add(new BPS::IntData("lines", lines));
+						file->add(sec);
+						BPS::write(file, "scores");
+
 						state = GAME_OVER;
 					}
 				}
@@ -492,28 +519,6 @@ private:
 
 	void drawCentralizedText(const char* str, int y) {
 		DrawString(SCREEN_WIDTH / 2 - GetTextSize(str).x / 2, y, str);
-	}
-
-	bool checkRow() {
-		for (int y = 0; y < FIELD_HEIGHT - 1; y++) {
-			bool complete = true;
-			for (int x = 1; x < FIELD_WIDTH - 1; x++) {
-				if (field[y][x] == 0) {
-					complete = false;
-				}
-			}
-			if (complete) {
-				//std::cout << "Complete Row\n";
-				for (int my = y; my > 0; my--) {
-					for (int mx = 1; mx < FIELD_WIDTH - 1; mx++) {
-						field[my][mx] = field[my - 1][mx];
-					}
-				}
-				lines++;
-				score += SCORE_INCREMENT;
-			}
-		}
-		return true;
 	}
 
 	olc::Sprite* spriteBlock(olc::Pixel color, olc::Pixel colord, olc::Pixel colorvd) {
