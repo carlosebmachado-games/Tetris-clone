@@ -17,7 +17,7 @@ const int SCORE_INCREMENT = 100;
 enum { BLACK, GREY, RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, SPR_AMOUNT };
 
 enum { MAIN_MENU, PLAYING, PAUSE_MENU, GAME_OVER };
-int state = GAME_OVER;
+int state = MAIN_MENU;
 
 bool btnRight = false;
 bool btnLeft = false;
@@ -168,11 +168,14 @@ struct Piece {
 		
 		// rotate
 		int ny = 0;
-		int nx = 0;
+		int nx = PIECE_SIZE - 1;
 		for (int sy = 0; sy < PIECE_SIZE; sy++) {
 			for (int sx = 0; sx < PIECE_SIZE; sx++) {
 				aux[ny][nx] = space[sy][sx];
+				ny++;
 			}
+			nx--;
+			ny = 0;
 		}
 		// -----
 
