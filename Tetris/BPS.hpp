@@ -182,7 +182,7 @@ namespace BPS
 
     class File
     {
-    private:
+    public:
         std::vector<Section*> sections;
     public:
         File(std::vector<Section*>);

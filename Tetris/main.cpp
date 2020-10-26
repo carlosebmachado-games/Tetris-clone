@@ -18,18 +18,18 @@ enum { BLACK, GREY, RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, SPR_AMOUNT };
 enum { MAIN_MENU, PLAYING, PAUSE_MENU, GAME_OVER };
 int state = MAIN_MENU;
 
-bool btnRight = false;
-bool btnLeft = false;
-bool btnDown = false;
-bool btnUp = false;
-bool btnConfirm = false;
-bool btnReturn = false;
+bool actRight = false;
+bool actLeft = false;
+bool actDown = false;
+bool actUp = false;
+bool actConfirm = false;
+bool actCancel = false;
 
 int score;
 int lines;
 int level;
 
-Timer timerDown = Timer(PIECE_DOWN_TIME);
+Timer timerDown;
 
 int field[22][12] = {
 	{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
@@ -73,9 +73,6 @@ struct Piece {
 		timerBtn.start();
 		int piece = rand() % 7;
 		int color = rand() % 6 + 2;
-
-		//std::cout << "Piece: " << piece << "\nColor: " << color << std::endl;
-		//piece = 0;
 		
 		switch (piece)
 		{
@@ -132,24 +129,21 @@ struct Piece {
 
 		// process inputs
 		if (timerBtn.timeout()) {
-			if (btnRight) {
+			if (actRight) {
 				move(olc::vi2d(1, 0));
-				//btnRight = false;
-			} else if (btnLeft) {
+			} else if (actLeft) {
 				move(olc::vi2d(-1, 0));
-				//btnLeft = false;
 			}
-			if (btnUp) {
+			if (actUp) {
 				rotate();
-				btnUp = false;
+				actUp = false;
 			}
 		}
 		if (timerPressDown.timeout()) {
-			if (btnDown) {
+			if (actDown) {
 				if (move(olc::vi2d(0, 1))) {
 					score++;
 				}
-				//btnDown = false;
 			}
 		}
 
@@ -179,7 +173,6 @@ struct Piece {
 		// -----
 
 		if (canRotate(aux)) {
-			//std::cout << "isFree rotate\n";
 			for (int sy = 0; sy < PIECE_SIZE; sy++) {
 				for (int sx = 0; sx < PIECE_SIZE; sx++) {
 					space[sy][sx] = aux[sy][sx];
@@ -190,13 +183,18 @@ struct Piece {
 	}
 
 	bool move(olc::vi2d movement) {
-		if (!isFree(movement)) return false;
-		//std::cout << "isFree()\n";
-
 		clean();
+		if (!isFree(movement)) {
+			putOnField();
+			return false;
+		}
 		x += movement.x;
 		y += movement.y;
-		//std::cout << "x: " << x << "\ny: " << y << std::endl;
+		putOnField();
+		return true;
+	}
+
+	void putOnField() {
 		int px = 0;
 		int py = 0;
 		for (int fy = y; fy < y + PIECE_SIZE; fy++) {
@@ -209,7 +207,6 @@ struct Piece {
 			py++;
 			px = 0;
 		}
-		return true;
 	}
 
 	void clean() {
@@ -230,17 +227,9 @@ struct Piece {
 	bool isFree(olc::vi2d movement) {
 		for (int sy = 0; sy < PIECE_SIZE; sy++) {
 			for (int sx = 0; sx < PIECE_SIZE; sx++) {
-				if (sy < PIECE_SIZE - 1) {
-					if (space[sy][sx] > 0 &&
-						space[sy + movement.y][sx + movement.x] == 0 &&
-						field[y + sy + movement.y][x + sx + movement.x] > 0) {
-						return false;
-					}
-				} else {
-					if (space[sy][sx] > 0 &&
-						field[y + sy + movement.y][x + sx + movement.x] > 0) {
-						return false;
-					}
+				if (space[sy][sx] > 0 &&
+					field[y + sy + movement.y][x + sx + movement.x] > 0) {
+					return false;
 				}
 			}
 		}
@@ -265,8 +254,12 @@ private:
 	olc::Sprite* sprites[SPR_AMOUNT];
 	std::vector<Piece> curPiece;
 	std::vector<Piece> nextPiece;
-	Timer timerLoop = Timer((SECOND / 60));
-	Timer timerLevel = Timer((60 * SECOND));
+	Timer timerLoop;
+	Timer timerLevel;
+	Timer timerKeyInput;
+	BPS::File* hiscores;
+	bool newScoreSaved = false;
+	std::string playerName = "";
 
 public:
 	Tetris() {
@@ -284,43 +277,85 @@ private:
 		sprites[CYAN] = spriteBlock(olc::CYAN, olc::DARK_CYAN, olc::VERY_DARK_CYAN);
 		sprites[MAGENTA] = spriteBlock(olc::MAGENTA, olc::DARK_MAGENTA, olc::VERY_DARK_MAGENTA);
 		sprites[YELLOW] = spriteBlock(olc::YELLOW, olc::DARK_YELLOW, olc::VERY_DARK_YELLOW);
+		hiscores = BPS::read("scores");
+		timerKeyInput = Timer(100);
+		timerKeyInput.start();
+		scoreBubbleSort(hiscores);
 		return true;
 	}
 
 	bool OnUserUpdate(float fElapsedTime) override {
 		// Processando keys
 		if (GetKey(olc::Key::RIGHT).bPressed || GetKey(olc::Key::D).bPressed) {
-			btnRight = true;
+			actRight = true;
 		} else if (GetKey(olc::Key::RIGHT).bReleased || GetKey(olc::Key::D).bReleased) {
-			btnRight = false;
+			actRight = false;
 		}
 		if (GetKey(olc::Key::LEFT).bPressed || GetKey(olc::Key::A).bPressed) {
-			btnLeft = true;
+			actLeft = true;
 		} else if (GetKey(olc::Key::LEFT).bReleased || GetKey(olc::Key::A).bReleased) {
-			btnLeft = false;
+			actLeft = false;
 		}
 		if (GetKey(olc::Key::DOWN).bPressed || GetKey(olc::Key::S).bPressed) {
-			btnDown = true;
+			actDown = true;
 		} else if (GetKey(olc::Key::DOWN).bReleased || GetKey(olc::Key::S).bReleased) {
-			btnDown = false;
+			actDown = false;
 		}
 		if (GetKey(olc::Key::UP).bPressed || GetKey(olc::Key::W).bPressed) {
-			btnUp = true;
+			actUp = true;
 		}
 		if (GetKey(olc::Key::ENTER).bPressed || GetKey(olc::Key::SPACE).bPressed) {
-			btnConfirm = true;
+			actConfirm = true;
 		}
 		if (GetKey(olc::Key::ESCAPE).bPressed || GetKey(olc::Key::BACK).bPressed) {
-			btnReturn = true;
-		}/* else if (GetKey(olc::Key::UP).bReleased || GetKey(olc::Key::W).bReleased) {
-			btnUp = false;
-		}*/
+			actCancel = true;
+		}
 
-		//std::cout << "OnUserUpdate...\n";
+		// processando interface inputs
+		if (state == MAIN_MENU) {
+			if (actConfirm) {
+				GameInit();
+				state = PLAYING;
+				actConfirm = false;
+			}
+			else if (actCancel) {
+				// TODO: Close game
+				actCancel = false;
+			}
+		}
+		else if (state == PLAYING) {
+			if (actConfirm) {
+				actConfirm = false;
+			}
+			else if (actCancel) {
+				state = PAUSE_MENU;
+				actCancel = false;
+			}
+		}
+		else if (state == PAUSE_MENU) {
+			if (actConfirm) {
+				state = PLAYING;
+				actConfirm = false;
+			}
+			else if (actCancel) {
+				state = MAIN_MENU;
+				actCancel = false;
+			}
+		}
+		else if (state == GAME_OVER) {
+			if (actConfirm) {
+				actConfirm = false;
+			}
+			else if (actCancel) {
+				hiscores = BPS::read("scores");
+				state = MAIN_MENU;
+				actCancel = false;
+			}
+		}
+
 		if (timerLoop.timeout()) {
 			render();
 			update();
-			//std::cout << "Update...\n";
 		}
 		return true;
 	}
@@ -330,12 +365,17 @@ private:
 		nextPiece = std::vector<Piece>();
 		curPiece.push_back(Piece());
 		nextPiece.push_back(Piece());
+		timerLoop = Timer((SECOND / 60));
+		timerLevel = Timer((60 * SECOND));
+		timerDown = Timer(PIECE_DOWN_TIME);
 		timerLoop.start();
 		timerLevel.start();
 		timerDown.start();
 		score = 0;
 		lines = 0;
 		level = 1;
+		newScoreSaved = false;
+		playerName = "";
 		for (int y = 0; y < FIELD_HEIGHT - 1; y++) {
 			for (int x = 1; x < FIELD_WIDTH - 1; x++) {
 				field[y][x] = 0;
@@ -345,14 +385,6 @@ private:
 
 	void update() {
 		if (state == MAIN_MENU) {
-			if (btnConfirm) {
-				state = PLAYING;
-				GameInit();
-				btnConfirm = false;
-			} else if (btnReturn) {
-				// TODO: Close game
-				btnReturn = false;
-			}
 		} else if (state == PLAYING) {
 			for (int i = 0; i < curPiece.size(); i++) {
 				if (!curPiece[i].update(this)) {
@@ -365,7 +397,6 @@ private:
 							}
 						}
 						if (complete) {
-							//std::cout << "Complete Row\n";
 							for (int my = y; my > 0; my--) {
 								for (int mx = 1; mx < FIELD_WIDTH - 1; mx++) {
 									field[my][mx] = field[my - 1][mx];
@@ -383,45 +414,29 @@ private:
 						nextPiece.clear();
 						nextPiece.push_back(Piece());
 					} else {
-						// TODO: Save hiscore / take player name / sort by hiscores
-						auto file = BPS::read("scores");
-						std::string pn = std::to_string(file->findAll().size() + 1);
-						auto sec = new BPS::Section("PLAYER " + pn);
-						sec->add(new BPS::IntData("score", score));
-						sec->add(new BPS::IntData("level", level));
-						sec->add(new BPS::IntData("lines", lines));
-						file->add(sec);
-						BPS::write(file, "scores");
-
 						state = GAME_OVER;
 					}
 				}
-				//std::cout << "Atualizou...\n";
 			}
 			if (timerLevel.timeout()) {
 				level++;
-				timerDown.interval = PIECE_DOWN_TIME / level;
-			}
-			if (btnConfirm) {
-				btnConfirm = false;
-			} else if (btnReturn) {
-				state = PAUSE_MENU;
-				btnReturn = false;
+				timerDown.setInterval(PIECE_DOWN_TIME / level);
 			}
 		} else if (state == PAUSE_MENU) {
-			if (btnConfirm) {
-				state = PLAYING;
-				btnConfirm = false;
-			} else if (btnReturn) {
-				state = MAIN_MENU;
-				btnReturn = false;
-			}
 		} else if (state == GAME_OVER) {
-			if (btnConfirm) {
-				btnConfirm = false;
-			} else if (btnReturn) {
-				state = MAIN_MENU;
-				btnReturn = false;
+			// TODO: Save hiscore (ok) / take player name / sort by hiscores (ok)
+			if (!newScoreSaved) {
+				auto scoreFile = BPS::read("scores");
+				std::string pn = std::to_string(scoreFile->findAll().size() + 1);
+				playerName = "PLAYER " + pn;
+				auto newScore = new BPS::Section(playerName);
+				newScore->add(new BPS::IntData("score", score));
+				newScore->add(new BPS::IntData("level", level));
+				newScore->add(new BPS::IntData("lines", lines));
+				scoreFile->add(newScore);
+				scoreBubbleSort(scoreFile);
+				BPS::write(scoreFile, "scores");
+				newScoreSaved = true;
 			}
 		}
 	}
@@ -431,23 +446,29 @@ private:
 
 		if (state == MAIN_MENU) {
 			drawCentralizedText("TETRIS", 20);
-			drawCentralizedText("ENTER TO PLAY", 100);
-			drawCentralizedText("ESC TO EXIT", 125);
-			drawCentralizedText("GAME: CARLOS MACHADO", 200);
-			drawCentralizedText("olcPixelGameEngine", 220);
-			drawCentralizedText("OneLoneCoder", 230);
+			drawCentralizedText("ENTER TO PLAY", 50);
+			drawCentralizedText("ESC TO EXIT", 65);
+			drawCentralizedText("HI-SCORES:", 95);
+			for (int i = 0; i < hiscores->findAll().size(); i++) {
+				auto name = hiscores->findAll()[i]->getName();
+				auto score = ((BPS::IntData*)  hiscores->findAll()[i]->findAll()[0])->getValue();
+				std::string str = name + " - " + std::to_string(score);
+				drawCentralizedText(str.c_str(), 110 + i * 12);
+				if (i >= 4) {
+					break;
+				}
+			}
+			drawCentralizedText("GAME: CARLOS MACHADO", 220);
+			drawCentralizedText("olcPixelGameEngine", 240);
+			drawCentralizedText("by OneLoneCoder", 250);
 		} else if(state == PLAYING) {
 			for (int y = 0; y < FIELD_HEIGHT; y++) {
 				for (int x = 0; x < FIELD_WIDTH; x++) {
 					if (field[y][x] > 0) {
 						DrawSprite(x * TILE_SIZE, y * TILE_SIZE, sprites[field[y][x]]);
 					}
-					//std::cout << field[y][x] << " ";
 				}
-				//std::cout << std::endl;
 			}
-			//system("pause");
-			//system("cls");
 
 			// UI
 			int uiX = FIELD_WIDTH * TILE_SIZE;
@@ -489,20 +510,24 @@ private:
 			drawCentralizedText("ESC TO BACK TO", 125);
 			drawCentralizedText("MAIN MENU", 135);
 		} else if (state == GAME_OVER) {
-			std::string strScore = std::to_string(score);
-			std::string strLevel = std::to_string(level);
-			std::string strLines = std::to_string(lines);
+			if (newScoreSaved) {
+				std::string strScore = std::to_string(score);
+				std::string strLevel = std::to_string(level);
+				std::string strLines = std::to_string(lines);
 
-			drawCentralizedText("TETRIS", 20);
-			drawCentralizedText("GAME OVER", 60);
-			drawCentralizedText("SCORE", 100);
-			drawCentralizedText(strScore.c_str(), 110);
-			drawCentralizedText("LEVEL", 130);
-			drawCentralizedText(strLevel.c_str(), 140);
-			drawCentralizedText("LINES", 160);
-			drawCentralizedText(strLines.c_str(), 170);
-			drawCentralizedText("ESC TO BACK TO", 210);
-			drawCentralizedText("MAIN MENU", 220);
+				drawCentralizedText("TETRIS", 20);
+				drawCentralizedText("GAME OVER", 60);
+				drawCentralizedText("NAME", 100);
+				drawCentralizedText(playerName.c_str(), 110);
+				drawCentralizedText("SCORE", 130);
+				drawCentralizedText(strScore.c_str(), 140);
+				drawCentralizedText("LEVEL", 160);
+				drawCentralizedText(strLevel.c_str(), 170);
+				drawCentralizedText("LINES", 190);
+				drawCentralizedText(strLines.c_str(), 200);
+				drawCentralizedText("ESC TO BACK TO", 230);
+				drawCentralizedText("MAIN MENU", 240);
+			}
 		}
 	}
 
@@ -515,6 +540,25 @@ private:
 			}
 		}
 		return true;
+	}
+
+	void scoreBubbleSort(BPS::File* file) {
+		for (int i = 0; i < file->sections.size() - 1; i++) {
+			for (int j = 0; j < file->sections.size() - 1; j++) {
+				auto jp1 = j + 1;
+				auto j_data = ((BPS::IntData*) file->sections[j]->findAll()[0])->getValue();
+				auto jp1_data = ((BPS::IntData*) file->sections[jp1]->findAll()[0])->getValue();
+
+				if (j_data < jp1_data) {
+					auto aux1 = file->sections[j];
+					auto aux2 = file->sections[jp1];
+					file->sections.erase(file->sections.begin() + j);
+					file->sections.insert(file->sections.begin() + j, aux2);
+					file->sections.erase(file->sections.begin() + jp1);
+					file->sections.insert(file->sections.begin() + jp1, aux1);
+				}
+			}
+		}
 	}
 
 	void drawCentralizedText(const char* str, int y) {
